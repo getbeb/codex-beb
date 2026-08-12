@@ -19,6 +19,21 @@
 set -u
 BEB="${BEB_BIN:-beb}"
 event="${1:-stop}"
+input=$(cat 2>/dev/null || true)
+
+# A Stop caused by our own block continuation is marked by codex with
+# stop_hook_active; never block it again. One announcement per ordinary
+# Stop, and mail the agent declines to read waits for the next boundary
+# instead of this hook manufacturing one — codex's own anti-loop
+# contract for Stop hooks.
+case "$event" in
+sessionstart | SessionStart) ;;
+*)
+    active=$(printf '%s' "$input" |
+        sed -n 's/.*"stop_hook_active"[[:space:]]*:[[:space:]]*\(true\|false\).*/\1/p')
+    [ "$active" = true ] && exit 0
+    ;;
+esac
 
 unread=$("$BEB" list 2>/dev/null) || exit 0
 [ -n "$unread" ] || exit 0

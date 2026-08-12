@@ -28,17 +28,26 @@ die() {
 A=$(cd "$S/a" && "$BEB" whoami)
 echo "tester $(cd "$S/b" && "$BEB" whoami)" >"$S/config/beb/known_signers"
 
-(cd "$S/a" && "$DRAIN" stop) >"$OUT" 2>"$ERR" || die "empty stop failed"
+# Hook input as codex sends it: plain Stop, and a Stop caused by a Stop
+# hook's own continuation.
+IN='{"session_id":"t","stop_hook_active":false}'
+INA='{"session_id":"t","stop_hook_active":true}'
+
+drain() { # <dir> <event> <input>
+    printf '%s' "$3" | (cd "$S/$1" && "$DRAIN" "$2") >"$OUT" 2>"$ERR"
+}
+
+drain a stop "$IN" || die "empty stop failed"
 test -s "$OUT" && die "spoke with no mail"
 ok "no mail: silent"
 
-(cd "$S/bare" && "$DRAIN" stop) >"$OUT" 2>"$ERR" || die "no-identity failed"
+drain bare stop "$IN" || die "no-identity failed"
 test -s "$OUT" && die "spoke without identity"
 ok "no identity: silent"
 
 (cd "$S/b" && "$BEB" send "$A" "one line") >/dev/null || die "send"
 
-(cd "$S/a" && "$DRAIN" sessionstart) >"$OUT" 2>"$ERR" || die "sessionstart failed"
+drain a sessionstart "$IN" || die "sessionstart failed"
 python3 -c "
 import json
 d=json.load(open('$OUT'))
@@ -50,7 +59,7 @@ assert 'read with: beb read' in c and '1  tester' in c, c
 " || die "sessionstart shape: $(cat "$OUT")"
 ok "sessionstart: valid JSON additionalContext with the announcement"
 
-(cd "$S/a" && "$DRAIN" stop) >"$OUT" 2>"$ERR" || die "stop failed"
+drain a stop "$IN" || die "stop failed"
 python3 -c "
 import json
 d=json.load(open('$OUT'))
@@ -58,21 +67,30 @@ assert d['decision']=='block', d
 r=d['reason']
 assert r.startswith('[beb] mail waits:') and 'read with: beb read' in r, r
 " || die "stop shape: $(cat "$OUT")"
-ok "stop: valid JSON block with the announcement"
+ok "stop with unread: valid JSON block with the announcement"
 
-(cd "$S/a" && "$DRAIN" stop) >"$S/out2.txt" 2>"$ERR" || die "rerun failed"
+drain a stop "$INA" || die "active stop failed"
+test -s "$OUT" && die "blocked a stop our own continuation caused"
+ok "stop_hook_active: never block again, codex's anti-loop honored"
+
+drain a sessionstart "$INA" || die "active sessionstart failed"
+grep -q "mail waits" "$OUT" || die "sessionstart wrongly muted by stop_hook_active"
+ok "stop_hook_active does not mute SessionStart"
+
+drain a stop "$IN" && cp "$OUT" "$S/out2.txt" || die "rerun failed"
+drain a stop "$IN" || die "rerun 2 failed"
 cmp -s "$OUT" "$S/out2.txt" || die "not idempotent"
 ok "never consumes: rerun announces the same mail"
 
-# The single-line case is the BSD-sed trap of old; and hostile bytes in a
-# sender column must never break the JSON envelope.
+# The single-line case is the BSD-sed trap of old; hostile bytes must
+# never break the JSON envelope.
 (cd "$S/b" && "$BEB" send "$A" 'quotes " and \ backslashes') >/dev/null || die "send hostile"
-(cd "$S/a" && "$DRAIN" stop) >"$OUT" 2>"$ERR" || die "hostile stop failed"
+drain a stop "$IN" || die "hostile stop failed"
 python3 -c "import json; json.load(open('$OUT'))" || die "hostile bytes broke JSON: $(cat "$OUT")"
-ok "JSON survives arbitrary sender/list bytes, single-line included"
+ok "JSON survives arbitrary list bytes, single-line included"
 
 (cd "$S/a" && "$BEB" read >/dev/null && "$BEB" read >/dev/null) || die "reads"
-(cd "$S/a" && "$DRAIN" stop) >"$OUT" 2>"$ERR" || die "post-read stop failed"
+drain a stop "$IN" || die "post-read stop failed"
 test -s "$OUT" && die "announced after reading"
 ok "after the agent reads, boundaries go quiet"
 

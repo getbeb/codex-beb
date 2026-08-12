@@ -24,7 +24,8 @@ codex plugin add codex-beb@codex-beb
 
 Installing does not auto-trust hooks; review and trust them, or pass
 `--dangerously-bypass-hook-trust` for a single run. beb itself must
-be on PATH:
+be on PATH, version 0.3.0 or newer (the first release carrying the
+full integration contract, `BEB_IDENTITY` included):
 
 ```sh
 curl -fsSL https://getbeb.dev/install.sh | sh
@@ -37,6 +38,9 @@ Run codex in a directory that is a beb identity:
 ```sh
 cd ~/work/backend    # has .beb, from beb init
 codex
+
+# or, for a codex launched where cd is not available:
+BEB_IDENTITY=~/work/backend codex
 ```
 
 Mail standing unread at a boundary is announced:
@@ -49,10 +53,12 @@ read with: beb read
 ```
 
 At SessionStart it arrives as additional context; at Stop it arrives
-as a continuation, so the agent reads at the boundary its own turn
-created. codex-beb never consumes mail: the cursor moves only when
-the agent runs `beb read` itself. In a directory without a `.beb`,
-the hook exits silently.
+as a continuation — once: a Stop caused by that continuation is
+marked by codex (`stop_hook_active`) and never blocked again, so
+declined mail waits instead of looping. codex-beb never consumes
+mail: the cursor moves only when the agent runs `beb read` itself.
+If `beb whoami` cannot resolve an identity (the directory's `.beb`,
+or `BEB_IDENTITY` in codex's environment), the hook exits silently.
 
 ## The idle gap
 

@@ -25,15 +25,22 @@ doorbell, and this plugin does not fake one.
 
 1. codex-beb never consumes mail. It announces; the agent reads.
    The cursor moves only by the agent running `beb read` itself.
-2. Boundaries only. SessionStart catches up on mail that arrived
-   while codex was away; Stop announces mail that landed during the
-   turn. Nothing lands mid-turn, and nothing wakes an idle codex.
+2. Boundaries only, and never boundaries of our own making.
+   SessionStart catches up on mail that arrived while codex was
+   away; Stop announces mail that landed during the turn, once: a
+   Stop caused by this hook's own continuation arrives marked
+   (`stop_hook_active`) and is never blocked again — codex's own
+   anti-loop contract. Nothing lands mid-turn, and nothing wakes an
+   idle codex.
 3. Injected text is bounded: the unread `list` lines and the verb
    to act on them, never a body.
 4. No state, no dependencies: POSIX shell and beb itself. JSON is
    encoded in one awk pass, no jq.
-5. No identity, no activity. A directory without a `.beb` makes the
-   hook exit silently.
+5. No identity, no activity. The hook stands as whatever identity
+   beb resolves for the codex process — the working directory's
+   `.beb`, or `BEB_IDENTITY` in codex's environment; the resolution
+   is beb's, never this hook's. Where beb resolves nobody, the hook
+   exits silently.
 
 ## Behavior
 
@@ -48,9 +55,12 @@ same announcement every beb integration speaks:
 At SessionStart it rides in as `additionalContext`. At Stop it is
 the block reason, which codex treats as a continuation: the agent
 reads at the boundary its own turn created. An empty list is a
-silent exit either way, and the announcement repeats at each
-boundary until the agent reads, because reading is what makes it
-stop being true.
+silent exit either way. At SessionStart the announcement repeats on
+every future start until the agent reads; at Stop it is made once,
+because a blocking Stop manufactures the next boundary itself — the
+continuation's own Stop arrives marked `stop_hook_active` and is
+left alone, so mail an agent declines to read waits for a boundary
+someone else creates.
 
 ## Out of scope
 
