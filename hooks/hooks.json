@@ -1,0 +1,10 @@
+{
+  "hooks": {
+    "SessionStart": [
+      { "hooks": [ { "type": "command", "command": "\"${PLUGIN_ROOT}\"/hooks/beb-drain.sh sessionstart", "timeout": 15 } ] }
+    ],
+    "Stop": [
+      { "hooks": [ { "type": "command", "command": "\"${PLUGIN_ROOT}\"/hooks/beb-drain.sh stop", "timeout": 15 } ] }
+    ]
+  }
+}

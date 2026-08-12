@@ -1,0 +1,11 @@
+{
+  "name": "codex-beb",
+  "plugins": [
+    {
+      "name": "codex-beb",
+      "source": { "source": "local", "path": "./" },
+      "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
+      "category": "Productivity"
+    }
+  ]
+}

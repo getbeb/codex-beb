@@ -1,0 +1,48 @@
+#!/bin/sh
+# beb-drain — announce waiting beb mail at a codex turn boundary. No
+# dependencies beyond a POSIX shell and beb itself.
+#
+# Codex hooks are synchronous, async output is discarded, and no rewake
+# primitive exists, so this never waits and never watches: an instant
+# `beb list` and whatever stands unread is announced.
+#
+#   - SessionStart: catch up on mail that arrived while codex was away.
+#   - Stop: announce mail that landed during the turn, at the boundary.
+#
+# It never consumes: the cursor moves only by the agent running
+# `beb read` itself, so the announcement repeats at each boundary until
+# reading makes it stop being true. Waking a truly idle codex is NOT
+# possible from a hook (openai/codex#20312) — see README.
+#
+# Codex injects differently per event, so the event is passed as $1.
+# No mail, or no identity here, is a silent no-op.
+set -u
+BEB="${BEB_BIN:-beb}"
+event="${1:-stop}"
+
+unread=$("$BEB" list 2>/dev/null) || exit 0
+[ -n "$unread" ] || exit 0
+
+# JSON-encode the list as one string value. No jq: one awk pass — the
+# sed `N;$!ba` slurp idiom silently drops single-line input on BSD sed,
+# which is exactly the common case. Order matters: backslash first.
+esc=$(printf '%s' "$unread" | awk 'BEGIN{ORS=""}
+  { gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); gsub(/\t/,"\\t");
+    if (NR>1) printf "\\n"; printf "%s", $0 }')
+
+msg='[beb] mail waits:\n'"$esc"'\nread with: beb read'
+
+case "$event" in
+sessionstart | SessionStart)
+    printf '%s%s%s\n' \
+        '{"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"' \
+        "$msg" \
+        '"}}'
+    ;;
+*)
+    printf '%s%s%s\n' \
+        '{"decision":"block","reason":"' \
+        "$msg" \
+        '"}'
+    ;;
+esac
