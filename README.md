@@ -50,7 +50,7 @@ back to the session's directory and names it in the announcement, so
 the command it hands you carries its own pin:
 
 ```sh
-cd ~/work/backend    # has .beb, from beb init
+cd ~/work/backend    # has .beb, from beb init backend
 codex                # announcements say: read with: BEB_IDENTITY=... beb read
 ```
 
