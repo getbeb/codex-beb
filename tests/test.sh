@@ -48,7 +48,7 @@ echo "tester $(b b whoami 2>/dev/null)" >"$S/config/beb/known_signers"
 IN='{"session_id":"t","stop_hook_active":false}'
 INA='{"session_id":"t","stop_hook_active":true}'
 
-drain() { # <dir> <event> <input>
+drain() { # <dir> <event> <input>; BEB_IDENTITY in the caller's env reaches the hook
     printf '%s' "$3" | (cd "$S/$1" && "$DRAIN" "$2") >"$OUT" 2>"$ERR"
 }
 
@@ -70,7 +70,7 @@ o=d['hookSpecificOutput']
 assert o['hookEventName']=='SessionStart', o
 c=o['additionalContext']
 assert c.startswith('[beb] mail waits:'), c
-assert 'read with: beb read' in c, c
+assert 'read with: ' in c and c.endswith('beb read'), c
 assert c.splitlines()[1].startswith('1  ') and c.splitlines()[1].endswith('tester'), c
 " || die "sessionstart shape: $(cat "$OUT")"
 ok "sessionstart: valid JSON additionalContext with the announcement"
@@ -81,9 +81,22 @@ import json
 d=json.load(open('$OUT'))
 assert d['decision']=='block', d
 r=d['reason']
-assert r.startswith('[beb] mail waits:') and 'read with: beb read' in r, r
+assert r.startswith('[beb] mail waits:') and 'read with: ' in r and r.endswith('beb read'), r
 " || die "stop shape: $(cat "$OUT")"
 ok "stop with unread: valid JSON block with the announcement"
+
+# The announcement names the identity when the agent's shell will not
+# have one, and does not when codex's environment already carries it.
+drain a stop "$IN" || die "pin-naming stop failed"
+grep -q "read with: BEB_IDENTITY=$S/a beb read" "$OUT" ||
+    die "unpinned session was told a bare beb read: $(cat "$OUT")"
+python3 -c "import json; json.load(open('$OUT'))" || die "the pin broke JSON: $(cat "$OUT")"
+ok "no ambient identity: the instruction carries the one the agent needs"
+
+BEB_IDENTITY="$S/a" drain a stop "$IN" || die "pinned stop failed"
+grep -q "read with: beb read" "$OUT" ||
+    die "pinned session was handed a redundant pin: $(cat "$OUT")"
+ok "codex already carries the identity: the instruction stays bare"
 
 drain a stop "$INA" || die "active stop failed"
 test -s "$OUT" && die "blocked a stop our own continuation caused"

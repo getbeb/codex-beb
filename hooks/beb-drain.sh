@@ -18,15 +18,39 @@
 # No mail, or no identity here, is a silent no-op.
 set -u
 BEB="${BEB_BIN:-beb}"
-# beb 0.6.0 stopped resolving the working directory: BEB_IDENTITY is the
-# only thing it reads. Codex hands a hook no identity of its own, but a
-# hook process inherits codex's environment and its directory, so the
-# directory codex was started in is still the answer -- it just has to
-# be named now. An ambient declaration wins, which is how the README
-# already says to run codex from somewhere else.
-export BEB_IDENTITY="${BEB_IDENTITY:-$PWD}"
 event="${1:-stop}"
 input=$(cat 2>/dev/null || true)
+
+# beb 0.6.0 stopped resolving the working directory: BEB_IDENTITY is the
+# only thing it reads. A hook is its own short-lived process, so nothing
+# it exports can outlive it -- codex offers no per-session env file, the
+# way Claude Code offers CLAUDE_ENV_FILE. This hook can pin itself and
+# only itself.
+#
+# Which splits the two cases, and the announcement has to say which one
+# it is, because the agent is the one told to run `beb read`:
+#
+#   BEB_IDENTITY already set — it came from codex's environment, and
+#   codex passes that through to the shell the agent runs commands in
+#   (shell_environment_policy). The agent can run `beb read` bare.
+#
+#   unset — nothing but this process knows the answer. The hook falls
+#   back to the session's directory for its own `list`, and names that
+#   directory in the instruction, because a bare `beb read` from the
+#   agent would answer "BEB_IDENTITY is not set" and it would be this
+#   announcement's fault.
+#
+# The fix an operator can make once is in the README: launch codex with
+# BEB_IDENTITY set, and every command in the session inherits it.
+if [ -n "${BEB_IDENTITY:-}" ]; then
+    pin=""
+else
+    dir=$(printf '%s' "$input" |
+        sed -n 's/.*"cwd"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' | head -n 1)
+    [ -n "$dir" ] || dir=$PWD
+    export BEB_IDENTITY="$dir"
+    pin="BEB_IDENTITY=$dir "
+fi
 
 # A Stop caused by our own block continuation is marked by codex with
 # stop_hook_active; never block it again. One announcement per ordinary
@@ -52,7 +76,11 @@ esc=$(printf '%s' "$unread" | awk 'BEGIN{ORS=""}
   { gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); gsub(/\t/,"\\t");
     if (NR>1) printf "\\n"; printf "%s", $0 }')
 
-msg='[beb] mail waits:\n'"$esc"'\nread with: beb read'
+# The pin is a path, and a path can hold the two bytes that end a JSON
+# string. Escaped the same way and in the same order as the listing.
+pinesc=$(printf '%s' "$pin" | awk 'BEGIN{ORS=""} { gsub(/\\/,"\\\\"); gsub(/"/,"\\\""); printf "%s", $0 }')
+
+msg='[beb] mail waits:\n'"$esc"'\nread with: '"$pinesc"'beb read'
 
 case "$event" in
 sessionstart | SessionStart)

@@ -33,22 +33,33 @@ curl -fsSL https://getbeb.dev/install.sh | sh
 
 ## Use
 
-Run codex in a directory that is a beb identity:
+Launch codex with the identity named:
+
+```sh
+BEB_IDENTITY=~/work/backend codex
+```
+
+codex passes its own environment through to the shell the agent runs
+commands in, so naming it once at launch is what lets the agent run
+`beb read` bare. A hook cannot do this for you: each one is its own
+short-lived process, and codex has no per-session environment file to
+write to.
+
+Running codex inside an identity directory works too — the hook falls
+back to the session's directory and names it in the announcement, so
+the command it hands you carries its own pin:
 
 ```sh
 cd ~/work/backend    # has .beb, from beb init
-codex
-
-# or, for a codex launched where cd is not available:
-BEB_IDENTITY=~/work/backend codex
+codex                # announcements say: read with: BEB_IDENTITY=... beb read
 ```
 
 Mail standing unread at a boundary is announced:
 
 ```
 [beb] mail waits:
-3  frontend
-4  ssh-ed25519 AAAA...
+3  now  deploy blocked  frontend
+4  now  schema drift    ...Y5ODcn2+
 read with: beb read
 ```
 
@@ -58,8 +69,7 @@ marked by codex (`stop_hook_active`) and never blocked again, so
 declined mail waits instead of looping. codex-beb never consumes
 mail: the cursor moves only when the agent runs `beb read` itself.
 If beb cannot resolve an identity, the hook exits silently. Identity
-is `BEB_IDENTITY`, which the hook defaults to the directory codex was
-started in; beb itself has read nothing else since 0.6.0.
+is `BEB_IDENTITY`, which beb has read nothing but since 0.6.0.
 
 ## The idle gap
 
