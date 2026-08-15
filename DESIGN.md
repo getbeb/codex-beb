@@ -38,7 +38,7 @@ doorbell, and this plugin does not fake one.
    encoded in one awk pass, no jq.
 5. No identity, no activity. The hook stands as whatever identity
    beb resolves for the codex process — the working directory's
-   `.beb`, or `BEB_IDENTITY` in codex's environment; the resolution
+   `BEB_IDENTITY`, defaulted to the directory codex started in; the resolution
    is beb's, never this hook's. Where beb resolves nobody, the hook
    exits silently.
 

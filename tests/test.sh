@@ -7,6 +7,21 @@ HERE=$(cd "$(dirname "$0")/.." && pwd)
 DRAIN=$HERE/hooks/beb-drain.sh
 BEB=${BEB_BIN:-beb}
 export BEB_BIN=$BEB
+# An ambient identity from the developer's own shell would override the
+# default the hook computes, which is the thing under test here.
+unset BEB_IDENTITY
+
+have=$("$BEB" --version 2>/dev/null | awk '{print $2}')
+[ -n "$have" ] || { echo "not ok - no beb on PATH or in BEB_BIN"; exit 1; }
+gate=0.6.0
+older=$(printf '%s\n%s\n' "$gate" "$have" | sort -t. -k1,1n -k2,2n -k3,3n | head -n 1)
+if [ "$have" != "$gate" ] && [ "$older" = "$have" ]; then
+    echo "not ok - beb $have is older than $gate (identity, subjects)"
+    exit 1
+fi
+
+# Identity is named, never inherited from the working directory.
+b() { d=$1; shift; BEB_IDENTITY="$S/$d" "$BEB" "$@"; }
 
 S=$(mktemp -d)
 export XDG_CONFIG_HOME=$S/config XDG_DATA_HOME=$S/data
@@ -25,8 +40,8 @@ die() {
 
 (cd "$S/a" && "$BEB" init >/dev/null) || die "init a"
 (cd "$S/b" && "$BEB" init >/dev/null) || die "init b"
-A=$(cd "$S/a" && "$BEB" whoami)
-echo "tester $(cd "$S/b" && "$BEB" whoami)" >"$S/config/beb/known_signers"
+A=$(b a whoami 2>/dev/null)
+echo "tester $(b b whoami 2>/dev/null)" >"$S/config/beb/known_signers"
 
 # Hook input as codex sends it: plain Stop, and a Stop caused by a Stop
 # hook's own continuation.
@@ -45,7 +60,7 @@ drain bare stop "$IN" || die "no-identity failed"
 test -s "$OUT" && die "spoke without identity"
 ok "no identity: silent"
 
-(cd "$S/b" && "$BEB" send "$A" "one line") >/dev/null || die "send"
+b b send "$A" --subject "one line" --body x >/dev/null 2>&1 || die "send"
 
 drain a sessionstart "$IN" || die "sessionstart failed"
 python3 -c "
@@ -55,7 +70,8 @@ o=d['hookSpecificOutput']
 assert o['hookEventName']=='SessionStart', o
 c=o['additionalContext']
 assert c.startswith('[beb] mail waits:'), c
-assert 'read with: beb read' in c and '1  tester' in c, c
+assert 'read with: beb read' in c, c
+assert c.splitlines()[1].startswith('1  ') and c.splitlines()[1].endswith('tester'), c
 " || die "sessionstart shape: $(cat "$OUT")"
 ok "sessionstart: valid JSON additionalContext with the announcement"
 
@@ -84,12 +100,12 @@ ok "never consumes: rerun announces the same mail"
 
 # The single-line case is the BSD-sed trap of old; hostile bytes must
 # never break the JSON envelope.
-(cd "$S/b" && "$BEB" send "$A" 'quotes " and \ backslashes') >/dev/null || die "send hostile"
+b b send "$A" --subject 'quotes " and \ backslashes' --body x >/dev/null 2>&1 || die "send hostile"
 drain a stop "$IN" || die "hostile stop failed"
 python3 -c "import json; json.load(open('$OUT'))" || die "hostile bytes broke JSON: $(cat "$OUT")"
 ok "JSON survives arbitrary list bytes, single-line included"
 
-(cd "$S/a" && "$BEB" read >/dev/null && "$BEB" read >/dev/null) || die "reads"
+{ b a read >/dev/null 2>&1 && b a read >/dev/null 2>&1; } || die "reads"
 drain a stop "$IN" || die "post-read stop failed"
 test -s "$OUT" && die "announced after reading"
 ok "after the agent reads, boundaries go quiet"

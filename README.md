@@ -57,8 +57,9 @@ as a continuation — once: a Stop caused by that continuation is
 marked by codex (`stop_hook_active`) and never blocked again, so
 declined mail waits instead of looping. codex-beb never consumes
 mail: the cursor moves only when the agent runs `beb read` itself.
-If `beb whoami` cannot resolve an identity (the directory's `.beb`,
-or `BEB_IDENTITY` in codex's environment), the hook exits silently.
+If beb cannot resolve an identity, the hook exits silently. Identity
+is `BEB_IDENTITY`, which the hook defaults to the directory codex was
+started in; beb itself has read nothing else since 0.6.0.
 
 ## The idle gap
 

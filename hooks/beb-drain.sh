@@ -18,6 +18,13 @@
 # No mail, or no identity here, is a silent no-op.
 set -u
 BEB="${BEB_BIN:-beb}"
+# beb 0.6.0 stopped resolving the working directory: BEB_IDENTITY is the
+# only thing it reads. Codex hands a hook no identity of its own, but a
+# hook process inherits codex's environment and its directory, so the
+# directory codex was started in is still the answer -- it just has to
+# be named now. An ambient declaration wins, which is how the README
+# already says to run codex from somewhere else.
+export BEB_IDENTITY="${BEB_IDENTITY:-$PWD}"
 event="${1:-stop}"
 input=$(cat 2>/dev/null || true)
 
