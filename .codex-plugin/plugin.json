@@ -1,6 +1,6 @@
 {
   "name": "codex-beb",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "Event-driven beb mail for codex: catch-up on session start and delivery at the turn boundary",
   "hooks": "./hooks/hooks.json"
 }

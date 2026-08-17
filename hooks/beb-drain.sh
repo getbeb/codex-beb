@@ -66,7 +66,7 @@ sessionstart | SessionStart) ;;
     ;;
 esac
 
-unread=$("$BEB" list 2>/dev/null) || exit 0
+unread=$("$BEB" list --unread --limit 10 2>/dev/null) || exit 0
 [ -n "$unread" ] || exit 0
 
 # JSON-encode the list as one string value. No jq: one awk pass — the
