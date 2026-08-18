@@ -24,8 +24,8 @@ codex plugin add codex-beb@codex-beb
 
 Installing does not auto-trust hooks; review and trust them, or pass
 `--dangerously-bypass-hook-trust` for a single run. beb itself must
-be on PATH, version 0.3.0 or newer (the first release carrying the
-full integration contract, `BEB_IDENTITY` included):
+be on PATH, version 0.6.0 or newer, which is where `BEB_IDENTITY`
+became the only identity beb reads:
 
 ```sh
 curl -fsSL https://getbeb.dev/install.sh | sh
