@@ -1,19 +1,12 @@
 # codex-beb
 
-beb mail announced at codex's turn boundaries.
+beb mail announced at Codex turn boundaries.
 
-[beb](https://getbeb.dev) delivers signed messages into a mailbox and
-never interrupts anyone; wake policy belongs to the runtime. codex's
-hook surface is smaller than pi's or Claude Code's, and this plugin
-is honest about it: mail waiting at a session start or turn end is
-announced there, and waking a truly idle codex is not something a
-codex hook can do.
+[beb](https://getbeb.dev/) delivers signed messages into a mailbox and
+never interrupts anyone. codex-beb announces waiting mail when a Codex
+session starts and when a turn ends.
 
-| capability | codex-beb |
-| --- | --- |
-| catch-up at session start | yes |
-| announce at turn end | yes |
-| wake an idle session | no (see below) |
+Codex cannot currently be woken by a hook while truly idle.
 
 ## Install
 
@@ -22,10 +15,10 @@ codex plugin marketplace add getbeb/codex-beb
 codex plugin add codex-beb@codex-beb
 ```
 
-Installing does not auto-trust hooks; review and trust them, or pass
-`--dangerously-bypass-hook-trust` for a single run. beb itself must
-be on PATH, version 0.6.0 or newer, which is where `BEB_IDENTITY`
-became the only identity beb reads:
+Codex does not automatically trust installed hooks; review and trust
+them before use.
+
+Requires beb 0.10.0 or newer:
 
 ```sh
 curl -fsSL https://getbeb.dev/install.sh | sh
@@ -33,60 +26,57 @@ curl -fsSL https://getbeb.dev/install.sh | sh
 
 ## Use
 
-Launch codex with the identity named:
+Prefer launching Codex with the identity named:
 
 ```sh
 BEB_IDENTITY=~/work/backend codex
 ```
 
-codex passes its own environment through to the shell the agent runs
-commands in, so naming it once at launch is what lets the agent run
-`beb read` bare. A hook cannot do this for you: each one is its own
-short-lived process, and codex has no per-session environment file to
-write to.
+That pins the identity for commands the agent runs, so `beb read` works
+directly.
 
-Running codex inside an identity directory works too — the hook falls
-back to the session's directory and names it in the announcement, so
-the command it hands you carries its own pin:
+Running Codex from an identity directory works too:
 
 ```sh
 cd ~/work/backend    # has .beb, from beb init backend
-codex                # announcements say: read with: BEB_IDENTITY=... beb read
+codex
 ```
 
-Mail standing unread at a boundary is announced:
+In that case codex-beb carries the identity explicitly in its read
+instruction.
 
-```
+Unread mail is announced at a session start or turn boundary:
+
+```text
 [beb] mail waits:
-3  now  deploy blocked  frontend
-4  now  schema drift    ...Y5ODcn2+
+4  12m  schema drift    ...Y5ODcn2+
+3  4h   deploy blocked  frontend
 read with: beb read
 ```
 
-At SessionStart it arrives as additional context; at Stop it arrives
-as a continuation — once: a Stop caused by that continuation is
-marked by codex (`stop_hook_active`) and never blocked again, so
-declined mail waits instead of looping. codex-beb never consumes
-mail: the cursor moves only when the agent runs `beb read` itself.
-If beb cannot resolve an identity, the hook exits silently. Identity
-is `BEB_IDENTITY`, which beb has read nothing but since 0.6.0.
+codex-beb never consumes mail: the cursor moves only when the agent runs
+`beb read`. If no beb identity can be resolved, the plugin stays quiet.
 
 ## The idle gap
 
-Codex hooks are synchronous (a blocking hook freezes the turn),
-async hook output is discarded, and no rewake primitive exists;
-codex's own tracker confirms the gap (openai/codex#20312). So mail
-arriving while codex sits idle waits until the next boundary, which
-is beb's promise anyway: mail waits. If you need a true idle wake,
-put codex under a pane supervisor or drive it via the app-server;
-that layer, not a hook, is where waking belongs.
+Codex hooks can announce mail at session and turn boundaries, but they
+cannot start a new turn in an idle session. Mail arriving while Codex is
+idle therefore waits until the next boundary.
+
+If true idle wake is required, it has to come from a layer outside the
+hook system, such as a supervisor or the app-server.
+
+See [openai/codex#20312](https://github.com/openai/codex/issues/20312)
+for the missing native wake primitive.
 
 ## How it works
 
-One POSIX shell script, no dependencies beyond beb itself, wired to
-SessionStart and Stop. It asks `beb list`, JSON-encodes the
-announcement in one awk pass (no jq), and exits silently when
-nothing is unread. The full reasoning is in [DESIGN.md](DESIGN.md).
+codex-beb runs a small POSIX shell hook at SessionStart and Stop. It
+checks `beb list` and announces unread mail without advancing the
+cursor.
+
+See [DESIGN.md](DESIGN.md) for hook behavior and loop-prevention
+details.
 
 ## License
 
